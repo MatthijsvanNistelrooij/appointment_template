@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server"
-// import twilio from "twilio"
 import {
   generateGoogleCalendarLink,
   shortenUrl,
@@ -30,10 +29,6 @@ const maanden = [
 ]
 
 export async function POST(req: NextRequest) {
-  // const accountSid = process.env.TWILIO_SID!
-  // const authToken = process.env.TWILIO_TOKEN!
-  // const client = twilio(accountSid, authToken)
-
   const { name, time, service, date, phone } = await req.json()
 
   try {
@@ -43,27 +38,37 @@ export async function POST(req: NextRequest) {
       ? process.env.BOTROS_WHATSAPP!
       : process.env.OLGA_WHATSAPP!
 
-    const justDate = date.split("T")[0]
+    // date is een ISO string, bv '2025-08-15T00:00:00.000Z' of '2025-08-15'
+    // time is bv '12:00'
 
-    const [year, month, day] = justDate.split("-").map(Number)
+    // Maak van date + time één ISO string zonder tijdzone:
+    // bv '2025-08-15T12:00' (lokale tijd in Europe/Amsterdam)
+    const startLocalISO = `${date.split("T")[0]}T${time}`
+
+    // Eindtijd is 30 minuten later, bouw die ook als ISO string
+    // Luxon kan dit doen in generateGoogleCalendarLink, maar je kunt het ook hier doen:
+    // Simpel: pak uren en minuten en bereken eindtijd met Date:
+    const [year, month, day] = date.split("T")[0].split("-").map(Number)
     const [hours, minutes] = time.split(":").map(Number)
+    const startDate = new Date(year, month - 1, day, hours, minutes)
+    const endDate = new Date(startDate.getTime() + 30 * 60 * 1000)
+    // Maak hier ook een ISO string zonder tijdzone (let op, toISOString() is UTC)
+    // Dus bouw zelf:
+    const endLocalISO = `${String(endDate.getFullYear())}-${String(
+      endDate.getMonth() + 1
+    ).padStart(2, "0")}-${String(endDate.getDate()).padStart(2, "0")}T${String(
+      endDate.getHours()
+    ).padStart(2, "0")}:${String(endDate.getMinutes()).padStart(2, "0")}`
 
-    const start = new Date(year, month - 1, day, hours, minutes)
-
-    if (isNaN(start.getTime())) {
-      throw new Error(`Ongeldige startdatum: ${justDate}T${time}`)
-    }
-
-    const end = new Date(start.getTime() + 30 * 60 * 1000)
-
-    const dag = dagen[start.getDay()]
-    const dagNummer = start.getDate()
-    const maand = maanden[start.getMonth()]
+    // Optioneel voor de datumweergave in NL
+    const dag = dagen[startDate.getDay()]
+    const dagNummer = startDate.getDate()
+    const maand = maanden[startDate.getMonth()]
 
     const calendarLink = generateGoogleCalendarLink({
       title: `${service} met ${name}`,
-      startDateTime: start,
-      endDateTime: end,
+      startDateTime: startLocalISO,
+      endDateTime: endLocalISO,
       description: `Afspraak met ${name} (${phone}) - ${service}`,
     })
 
@@ -71,7 +76,6 @@ export async function POST(req: NextRequest) {
 
     const formattedDate = `${dag} ${dagNummer} ${maand} ${shortLink}`
 
-    // MOCK
     console.log("📦 WhatsApp message payload:")
     console.log({
       to,
@@ -84,22 +88,11 @@ export async function POST(req: NextRequest) {
       },
       calendarLink,
       shortLink,
-      start: start.toISOString(),
-      end: end.toISOString(),
+      start: startDate.toISOString(),
+      end: endDate.toISOString(),
     })
 
-    // await client.messages.create({
-    //   from: process.env.TWILIO_WHATSAPP!,
-    //   to,
-    //   contentSid: process.env.TWILIO_TEMPLATE_SID!,
-    //   contentVariables: JSON.stringify({
-    //     1: name,
-    //     2: phone,
-    //     3: formattedDate,
-    //     4: time,
-    //     5: service,
-    //   }),
-    // })
+    // Je Twilio bericht hier (uitgecomment)
 
     return NextResponse.json({ success: true })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
