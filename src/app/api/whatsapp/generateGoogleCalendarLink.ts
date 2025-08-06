@@ -1,3 +1,5 @@
+import { DateTime } from "luxon"
+
 export function generateGoogleCalendarLink({
   title,
   startDateTime,
@@ -12,12 +14,7 @@ export function generateGoogleCalendarLink({
   location?: string
 }) {
   const format = (date: Date) =>
-    `${date.getUTCFullYear()}${String(date.getUTCMonth() + 1).padStart(
-      2,
-      "0"
-    )}${String(date.getUTCDate()).padStart(2, "0")}T${String(
-      date.getUTCHours()
-    ).padStart(2, "0")}${String(date.getUTCMinutes()).padStart(2, "0")}00Z`
+    DateTime.fromJSDate(date).toUTC().toFormat("yyyyLLdd'T'HHmmss'Z'")
 
   const link = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(
     title
